@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rtk git branch --show-current *)",
+      "Bash(rtk grep *)",
+      "Bash(rtk ls *)",
+      "Bash(rtk read *)"
+    ]
+  },
+  "worktree": {
+    "bgIsolation": "none"
+  }
+}
