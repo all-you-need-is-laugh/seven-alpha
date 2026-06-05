@@ -26,11 +26,11 @@ If every bucket is empty: say "Inbox zero — nothing awaits you." and stop.
 
 | Group | Bucket(s) | Why it's on you |
 | --- | --- | --- |
-| 🔍 Triage | `unlabeled`, `needs_triage`, `needs_info_reporter_replied` | You must evaluate / re-evaluate |
+| 🔍 Triage | `unlabeled`, `needs_triage`, `needs_info` | You must evaluate / supply missing detail |
 | 🛠️ Build | `ready_for_human` | Triaged as needing human implementation |
-| 🔀 Pull requests | `to_review`, `blocked`, `mergeable` | Review someone's PR / fix your blocked PR / merge a ready one |
+| 🔀 Pull requests | `ready`, `blocked` | Review & merge a green PR / fix one with red CI or a merge conflict |
 
-`needs_info_reporter_replied` = a `needs-info` issue whose last comment isn't yours (reporter answered — heuristic).
+`needs_info` = an issue parked for missing detail. Solo project, so there's no reporter to wait on — the detail is always on you, so every open `needs-info` shows.
 
 ## Render format
 
@@ -39,15 +39,15 @@ If every bucket is empty: say "Inbox zero — nothing awaits you." and stop.
 
 ### 🔍 Triage (3)
 - #12 Login retries loop forever      · 4d · unlabeled              → /triage 12
-- #9  CSV export mangles UTF-8         · needs-info, reporter replied → /triage 9
+- #9  CSV export mangles UTF-8         · needs-info                  → /triage 9
 - #5  Flaky pagination test            · needs-triage                → /triage 5
 
 ### 🛠️ Build — ready for human (1)
 - #7  Move auth to OAuth               · ready-for-human             → /tdd (issue 7)
 
 ### 🔀 Pull requests (2)
-- review #14 Add rate limiter          · CI green                    → gh pr diff 14
-- merge  #11 Fix off-by-one in cursor  · approved + green            → gh pr merge 11 --squash
+- ready   #14 Add rate limiter         · CI green                    → gh pr diff 14, then merge
+- blocked #11 Fix off-by-one in cursor · CI red                      → gh pr checks 11
 ```
 
 One line per item: `#num title · age/status · → next command`. Omit empty groups. Show the total in the heading.
@@ -61,14 +61,13 @@ After rendering, ask: "Which one do you want to handle?" Then:
 | Triage bucket | Invoke `/triage <N>` |
 | `ready_for_human` (enhancement) | Start implementation with `/tdd`, working from issue `<N>` |
 | `ready_for_human` (bug) | Start with `/diagnose`, working from issue `<N>` |
-| PR to review | `gh pr diff <N>` then walk the review; `gh pr review <N> --approve` / `--request-changes` |
-| PR blocked | `gh pr checks <N>` for red CI, or read the change requests, then fix |
-| PR mergeable | Confirm, then `gh pr merge <N> --squash` |
+| PR `ready` | `gh pr diff <N>` to review, then `gh pr merge <N> --squash` once green |
+| PR `blocked` | `gh pr checks <N>` for the red check (or resolve the merge conflict), then fix |
 
 Stay read-only until the user picks. Never triage, review, or merge without their explicit pick.
 
 ## Config assumptions
 
-- **"PR to review" = a PR you didn't author.** Assumes AFK agents open PRs under a different account than yours. If agents push under your own login, edit the `to_review` filter in `scripts/touch-points.sh`.
+- **PRs are grouped by CI, not author.** Solo repo: agents push under your account and GitHub blocks self-approval, so author and review-decision carry no signal. Every open non-draft PR is yours — `ready` (review, then merge once green) or `blocked` (red CI / merge conflict). Add an author filter in `scripts/touch-points.sh` if you later introduce a separate bot account.
 - Label strings come from `docs/agents/triage-labels.md`; the script defaults to the canonical names when no env override is given.
 - `ready-for-agent` issues are intentionally **not** shown — dispatching agents is out of this skill's scope.
