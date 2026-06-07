@@ -68,21 +68,26 @@ Stay read-only until the user picks. Never triage, review, or merge without thei
 
 ## When nothing awaits you
 
-An empty inbox means the *reactive* work is clear — not that there's nothing to do. Propose what the maintainer could do next (all human-driven; this skill never dispatches agents), then offer to start one. Don't auto-run anything.
+An empty inbox means the *reactive* work is clear — not that there's nothing to do. Present the next moves as a **selectable menu** (the `AskUserQuestion` tool), then invoke whatever the user picks. Every option is human-driven — this skill never dispatches agents. Don't auto-run anything: the user's selection is the only trigger.
 
-> **Inbox zero — nothing awaits you.** Your reactive queue is clear. Options:
->
-> **Prime the pipeline** — turn ideas into tracked work
-> - `/to-prd` — turn the current context into a PRD on the tracker
-> - `/to-issues` — break a plan or PRD into tracer-bullet issues, then `/triage` them
-> - `/grill-with-docs` — stress-test a rough plan against the domain model first
->
-> **Improve proactively** — no incoming work needed
-> - `/improve-codebase-architecture` — surface deepening refactors
-> - `/zoom-out` — map an unfamiliar area before changing it
-> - `/prototype` — spike a throwaway to answer an open design question
->
-> Or call it done — nothing queued anywhere is a fine place to stop.
+A menu holds at most four choices, so offer it in **two tiers**.
+
+**Tier 1 — pick a track.** `AskUserQuestion` (header "Next move") with three options:
+
+| Option | Description |
+| --- | --- |
+| Prime the pipeline | Turn an idea or plan into tracked work |
+| Improve proactively | Sharpen the codebase — no incoming work needed |
+| Call it done | Nothing queued anywhere; a fine place to stop |
+
+**Tier 2 — pick the action.** A second `AskUserQuestion` listing that track's commands; invoke the chosen one.
+
+| Track | Menu options (label → command) |
+| --- | --- |
+| Prime the pipeline | PRD from context → `/to-prd` · Break a plan into issues → `/to-issues` (then `/triage`) · Stress-test a plan → `/grill-with-docs` |
+| Improve proactively | Find refactors → `/improve-codebase-architecture` · Map an area → `/zoom-out` · Spike a design → `/prototype` |
+
+If the user picks **Call it done**, stop with a one-line "nothing queued — good place to stop." Otherwise launch the selected skill.
 
 ## Config assumptions
 
