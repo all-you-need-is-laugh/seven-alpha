@@ -6,7 +6,8 @@
       "Bash(rtk grep *)",
       "Bash(rtk ls *)",
       "Bash(rtk read *)",
-      "Bash(bash .claude/skills/for-me/scripts/touch-points.sh:*)"
+      "Bash(bash .claude/skills/for-me/scripts/touch-points.sh:*)",
+      "Bash(bash .claude/skills/for-agent/scripts/ready-for-agent.sh:*)"
     ]
   },
   "worktree": {
