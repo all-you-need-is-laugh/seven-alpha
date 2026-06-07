@@ -1,13 +1,15 @@
 {
   "permissions": {
     "allow": [
+      "Bash(bash .claude/skills/for-agent/scripts/ready-for-agent.sh:*)",
+      "Bash(bash .claude/skills/for-me/scripts/touch-points.sh:*)",
+      "Bash(rtk find *)",
       "Bash(rtk git branch --show-current *)",
+      "Bash(rtk git log *)",
       "Bash(rtk git status *)",
       "Bash(rtk grep *)",
       "Bash(rtk ls *)",
-      "Bash(rtk read *)",
-      "Bash(bash .claude/skills/for-me/scripts/touch-points.sh:*)",
-      "Bash(bash .claude/skills/for-agent/scripts/ready-for-agent.sh:*)"
+      "Bash(rtk read *)"
     ]
   },
   "worktree": {
