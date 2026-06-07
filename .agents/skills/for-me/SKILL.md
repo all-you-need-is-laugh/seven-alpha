@@ -20,7 +20,7 @@ Your action inbox over the GitHub tracker configured in `docs/agents/issue-track
 2. Render the result (see format below), oldest item first within each group.
 3. Offer to act — ask which item to handle, then run its command from the dispatch table.
 
-If every bucket is empty: say "Inbox zero — nothing awaits you." and stop.
+If every bucket is empty, don't just stop — render the **When nothing awaits you** proposition below.
 
 ## What it shows
 
@@ -65,6 +65,24 @@ After rendering, ask: "Which one do you want to handle?" Then:
 | PR `blocked` | `gh pr checks <N>` for the red check (or resolve the merge conflict), then fix |
 
 Stay read-only until the user picks. Never triage, review, or merge without their explicit pick.
+
+## When nothing awaits you
+
+An empty inbox means the *reactive* work is clear — not that there's nothing to do. Propose what the maintainer could do next (all human-driven; this skill never dispatches agents), then offer to start one. Don't auto-run anything.
+
+> **Inbox zero — nothing awaits you.** Your reactive queue is clear. Options:
+>
+> **Prime the pipeline** — turn ideas into tracked work
+> - `/to-prd` — turn the current context into a PRD on the tracker
+> - `/to-issues` — break a plan or PRD into tracer-bullet issues, then `/triage` them
+> - `/grill-with-docs` — stress-test a rough plan against the domain model first
+>
+> **Improve proactively** — no incoming work needed
+> - `/improve-codebase-architecture` — surface deepening refactors
+> - `/zoom-out` — map an unfamiliar area before changing it
+> - `/prototype` — spike a throwaway to answer an open design question
+>
+> Or call it done — nothing queued anywhere is a fine place to stop.
 
 ## Config assumptions
 
