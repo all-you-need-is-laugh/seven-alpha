@@ -4,7 +4,7 @@
 #
 # Label string defaults to canonical. If docs/agents/triage-labels.md remaps it,
 # pass an override: LABEL_READY_FOR_AGENT=... bash ready-for-agent.sh
-set -euo pipefail
+# set -euo pipefail
 
 L_READY_AGENT="${LABEL_READY_FOR_AGENT:-ready-for-agent}"
 
