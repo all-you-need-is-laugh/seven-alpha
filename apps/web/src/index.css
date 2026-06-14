@@ -5,6 +5,7 @@
   --text: #1c1c20;
   --muted: #8a8a93;
   --accent: #4f46e5;
+  --danger: #b91c1c;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
 }
