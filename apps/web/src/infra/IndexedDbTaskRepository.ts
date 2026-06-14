@@ -10,6 +10,10 @@ interface SevenAlphaDB extends DBSchema {
   tasks: {
     key: Id
     value: Task
+    // Intentionally unqueried today — getTasks reads all and the store filters
+    // in memory. Kept as a seed for the future backend's per-List queries; see
+    // docs/adr/0001-local-first-indexeddb.md. Dropping it would need a
+    // DB_VERSION bump + migration.
     indexes: { byListId: Id }
   }
 }
