@@ -18,3 +18,4 @@ dist/
 .claude/worktrees
 .claude/skills
 .claude/agents
+.claude/workflows
