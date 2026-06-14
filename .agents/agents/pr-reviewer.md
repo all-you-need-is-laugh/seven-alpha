@@ -1,7 +1,9 @@
 ---
-name: pr-verifier
-description: Adversarially verifies a PR diff against an issue's acceptance criteria. Read-only.
-model: opus   # review is cheaper work; bump to opus per-call if a PR is gnarly
+name: pr-reviewer
+description: >
+  Final step of the implementation workflow. Adversarially reviews a PR diff
+  against an issue's acceptance criteria. Read-only.
+model: opus
 effort: max
 tools: Read, Bash, Grep, Glob   # no Edit/Write (read-only), no Skill needed
 ---
