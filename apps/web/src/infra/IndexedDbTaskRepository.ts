@@ -53,14 +53,14 @@ export class IndexedDbTaskRepository implements TaskRepository {
   async setDone(taskId: Id, done: boolean): Promise<void> {
     const db = await this.dbPromise
     const task = await db.get('tasks', taskId)
-    if (!task) return
+    if (!task) throw new Error(`Task not found: ${taskId}`)
     await db.put('tasks', { ...task, done })
   }
 
   async moveTask(taskId: Id, toListId: Id): Promise<void> {
     const db = await this.dbPromise
     const task = await db.get('tasks', taskId)
-    if (!task) return
+    if (!task) throw new Error(`Task not found: ${taskId}`)
     await db.put('tasks', { ...task, listId: toListId })
   }
 }

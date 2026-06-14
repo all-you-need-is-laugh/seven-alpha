@@ -5,7 +5,7 @@ import { TaskList } from './ui/TaskList'
 import './App.css'
 
 function Workspace() {
-  const { loading, activeListId, lists } = useStore()
+  const { loading, error, activeListId, lists } = useStore()
 
   if (loading) {
     return (
@@ -22,6 +22,11 @@ function Workspace() {
       <header className="workspace__header">
         <h1>{activeList ? activeList.name : 'Seven Alpha'}</h1>
       </header>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
       <NewTaskInput />
       <TaskList />
     </main>
