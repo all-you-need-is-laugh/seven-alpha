@@ -23,9 +23,21 @@ interface StoreValue {
 
 const StoreContext = createContext<StoreValue | null>(null)
 
-const repository: TaskRepository = new IndexedDbTaskRepository()
+export function StoreProvider({
+  children,
+  repository: injectedRepository,
+}: {
+  children: ReactNode
+  // The swap seam (ADR 0001): defaults to IndexedDB, but a fake or a future
+  // HTTP implementation can be injected without touching UI or domain.
+  repository?: TaskRepository
+}) {
+  // Keep a stable instance: lazily build the default once, and hold whatever
+  // was injected, so the repository identity never shifts mid-session.
+  const [repository] = useState<TaskRepository>(
+    () => injectedRepository ?? new IndexedDbTaskRepository(),
+  )
 
-export function StoreProvider({ children }: { children: ReactNode }) {
   const [lists, setLists] = useState<List[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [activeListId, setActiveListId] = useState<Id | null>(null)
@@ -45,7 +57,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [repository])
 
   const selectList = (id: Id) => setActiveListId(id)
 
