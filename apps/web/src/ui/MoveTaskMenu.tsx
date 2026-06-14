@@ -1,10 +1,8 @@
 import { useStore } from '../state/store'
-import type { Id } from '../domain/types'
+import type { Task } from '../domain/types'
 
-export function MoveTaskMenu({ taskId }: { taskId: Id }) {
-  const { lists, tasks, moveTask } = useStore()
-  const task = tasks.find((t) => t.id === taskId)
-  if (!task) return null
+export function MoveTaskMenu({ task }: { task: Task }) {
+  const { lists, moveTask } = useStore()
 
   const others = lists.filter((l) => l.id !== task.listId)
   if (others.length === 0) return null
@@ -14,7 +12,7 @@ export function MoveTaskMenu({ taskId }: { taskId: Id }) {
       className="move-menu"
       value=""
       onChange={(e) => {
-        if (e.target.value) moveTask(taskId, e.target.value as Id)
+        if (e.target.value) moveTask(task.id, e.target.value)
       }}
       aria-label="Move task to another list"
     >

@@ -22,7 +22,7 @@ export function TaskList() {
             <Checkbox checked={task.done} onChange={() => toggleDone(task.id)} />
             <span className="task__title">{task.title}</span>
           </label>
-          <MoveTaskMenu taskId={task.id} />
+          <MoveTaskMenu task={task} />
         </li>
       ))}
     </ul>
