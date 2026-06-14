@@ -1,5 +1,10 @@
 {
   "name": "seven-alpha",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "pnpm --filter @seven-alpha/web dev",
+    "build": "pnpm --filter @seven-alpha/web build",
+    "typecheck": "pnpm --filter @seven-alpha/web typecheck"
+  }
 }
