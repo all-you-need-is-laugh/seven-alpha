@@ -31,6 +31,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [activeListId, setActiveListId] = useState<Id | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Active-List invariant: once a List is active it stays active; we only
+  // auto-pick one when none is set (the `prev ?? …` guard, repeated below in
+  // createList). This keeps the user's chosen List sticky across a load and
+  // across creating a new List — selecting a different List is an explicit act
+  // (selectList). It is the only policy governing which List is active; there
+  // is no separate model for it, just this shared guard.
   useEffect(() => {
     let cancelled = false
     Promise.all([repository.getLists(), repository.getTasks()]).then(
@@ -38,6 +44,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         setLists(loadedLists)
         setTasks(loadedTasks)
+        // On load, fall back to the first List (or none if there are no Lists).
         setActiveListId((prev) => prev ?? loadedLists[0]?.id ?? null)
         setLoading(false)
       },
@@ -52,6 +59,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const createList = async (name: string) => {
     const list = await repository.createList(name)
     setLists((prev) => [...prev, list])
+    // Same active-List invariant as on load: a freshly created List becomes
+    // active only when there is none yet, never stealing focus from one the
+    // user already has selected.
     setActiveListId((prev) => prev ?? list.id)
   }
 
