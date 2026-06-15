@@ -1,12 +1,11 @@
 export const meta = {
   name: 'implementation',
-  description: 'Implement GitHub issues (passed as args) — each through a sequential per-step pipeline (plan → TDD → verify → commit → push → open PR), then pr-reviewer checks the PR diff. Each issue runs in its own persistent worktree shared across its steps.',
+  description: 'Implement GitHub issues (passed as args) — each through a sequential per-step pipeline (plan → implement[tdd+verify loop] → commit → push → open PR), then pr-reviewer checks the PR diff. Each issue runs in its own persistent worktree shared across its steps.',
   whenToUse: 'Run with args = array of issue numbers, e.g. {name:"implementation", args:[2,6,9]}. Steps run sequentially per issue; issues pipeline against each other.',
   phases: [
     { title: 'Fetch', detail: 'pull each issue body via gh and build the work list' },
     { title: 'Plan', detail: 'task-planner: orient + create the persistent worktree/branch' },
-    { title: 'TDD', detail: 'tdd-implementer: implement in the worktree (test-first where a runner exists)' },
-    { title: 'Verify', detail: 'change-verifier: typecheck/build/lint + criteria check (gates the rest)' },
+    { title: 'Implement', detail: 'tdd-implementer → change-verifier, looped up to MAX_ITERATIONS (break as soon as verify passes). Gates the rest.' },
     { title: 'Commit', detail: 'committer: one [Claude] Conventional Commit' },
     { title: 'Push', detail: 'pusher: git push -u origin <branch>' },
     { title: 'Open PR', detail: 'pr-opener: gh pr create, Closes #N + criteria checklist' },
@@ -15,6 +14,11 @@ export const meta = {
 }
 
 const REPO = 'all-you-need-is-laugh/seven-alpha'
+
+// One "iteration" = a tdd pass followed by a verify pass. The implement phase
+// loops up to this many iterations, breaking early as soon as verify passes; if
+// every iteration still fails verification, commit/push/PR are gated off.
+const MAX_ITERATIONS = 3
 
 // --- args: array of issue numbers ---------------------------------------
 const issues = Array.isArray(args) ? args : (args == null ? [] : [args])
@@ -182,28 +186,58 @@ const results = await pipeline(
   (c) => step(null, c, 'plan', () => agent(
     `Plan issue #${c.issue} ("${c.title}") in ${REPO} and set up its worktree.\n` +
     `Target branch: ${c.branch}\nTarget worktree (relative to repo root): ${WT(c)} — make it absolute.\n\n` +
+    `Base the worktree+branch on the latest origin/main, NOT the current HEAD ` +
+    `(this session may be on a feature branch):\n` +
+    `  git fetch origin main && git worktree add -b ${c.branch} <abs-path> origin/main\n\n` +
     `=== ISSUE ===\n${c.spec}\n\nCreate the worktree+branch, orient, return the plan + absolute worktreePath.`,
     { agentType: 'task-planner', schema: PLAN_SCHEMA, label: `plan:${c.label}`, phase: 'Plan' }
   )),
 
-  // 2. TDD — implement inside the worktree
-  (p, c) => step(p, c, 'tdd', () => agent(
-    `Implement issue #${c.issue} ("${c.title}") per the plan, inside the worktree.\n` +
-    `Worktree (cd here for EVERY command): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
-    `=== PLAN ===\n${p.steps.plan?.plan || '(plan unavailable — work from the issue)'}\n\n` +
-    `=== ISSUE / acceptance criteria ===\n${c.spec}\n\n` +
-    `Implement to satisfy every criterion. Do NOT commit/push/PR.`,
-    { agentType: 'tdd-implementer', schema: TDD_SCHEMA, label: `tdd:${c.label}`, phase: 'TDD' }
-  )),
+  // 2. IMPLEMENT — loop (tdd → verify) up to MAX_ITERATIONS; verify gates the rest
+  (p, c) => step(p, c, 'implement', async () => {
+    const iterations = []
+    let v = null
+    let n = 0
+    while (n < MAX_ITERATIONS) {
+      n++
+      const first = n === 1
+      const tddPrompt = first
+        ? `Implement issue #${c.issue} ("${c.title}") per the plan, inside the worktree.\n` +
+          `Worktree (cd here for EVERY command): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
+          `=== PLAN ===\n${p.steps.plan?.plan || '(plan unavailable — work from the issue)'}\n\n` +
+          `=== ISSUE / acceptance criteria ===\n${c.spec}\n\n` +
+          `Implement to satisfy every criterion. Do NOT commit/push/PR.`
+        : `Your previous implementation for issue #${c.issue} ("${c.title}") FAILED verification ` +
+          `(iteration ${n - 1}). Fix it inside the worktree.\n` +
+          `Worktree (cd here for EVERY command): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
+          `=== Failing checks ===\n${JSON.stringify((v?.checks || []).filter((x) => !x.passed))}\n\n` +
+          `=== Unmet acceptance criteria ===\n${JSON.stringify((v?.criteria || []).filter((x) => !x.met).map((x) => x.criterion))}\n\n` +
+          `=== Verifier notes ===\n${v?.notes || ''}\n\n` +
+          `=== Acceptance criteria (full) ===\n${c.spec}\n\n` +
+          `Address ONLY these failures, stay in scope, do NOT commit/push/PR.`
 
-  // 3. VERIFY — gates the rest
-  (p, c) => step(p, c, 'verify', () => agent(
-    `Verify the change for issue #${c.issue} ("${c.title}") inside the worktree.\n` +
-    `Worktree (cd here first): ${p.worktreePath}\n\n` +
-    `=== Acceptance criteria (from the issue) ===\n${c.spec}\n\n` +
-    `Run typecheck/build/lint, judge each criterion, set status=failed if anything fails.`,
-    { agentType: 'change-verifier', schema: VERIFY_SCHEMA, label: `verify:${c.label}`, phase: 'Verify' }
-  )),
+      const tdd = await agent(tddPrompt, {
+        agentType: 'tdd-implementer', schema: TDD_SCHEMA,
+        label: first ? `tdd:${c.label}` : `tdd${n}:${c.label}`, phase: 'Implement',
+      })
+
+      v = await agent(
+        `Verify the change for issue #${c.issue} ("${c.title}") inside the worktree.\n` +
+        `Worktree (cd here first): ${p.worktreePath}\n\n` +
+        `=== Acceptance criteria (from the issue) ===\n${c.spec}\n\n` +
+        `Run typecheck/build/lint, judge each criterion, set status=failed if anything fails.`,
+        { agentType: 'change-verifier', schema: VERIFY_SCHEMA, label: first ? `verify:${c.label}` : `verify${n}:${c.label}`, phase: 'Implement' }
+      )
+
+      iterations.push({ iteration: n, tdd, verify: v })
+      if (v && v.status === 'ok') break
+      if (n < MAX_ITERATIONS) log(`#${c.issue}: verify failed — re-running tdd+verify (iteration ${n + 1}/${MAX_ITERATIONS})`)
+    }
+
+    // Return the FINAL verify object (so .checks/.status/.criteria stay valid for
+    // downstream), annotated with the iteration trail.
+    return { ...(v || { status: 'failed', checks: [], criteria: [], allPassed: false, notes: 'no verify result' }), iterations, iterationCount: n }
+  }),
 
   // 4. COMMIT
   (p, c) => step(p, c, 'commit', () => agent(
@@ -225,7 +259,7 @@ const results = await pipeline(
     `Open the PR for issue #${c.issue} ("${c.title}").\n` +
     `Worktree (cd here first): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
     `Body MUST include "Closes #${c.issue}" and a per-criterion checklist with how each was verified.\n` +
-    `Verify-step output to cite:\n${JSON.stringify(p.steps.verify?.checks || [])}\n\n` +
+    `Verify output to cite:\n${JSON.stringify(p.steps.implement?.checks || [])}\n\n` +
     `=== Acceptance criteria ===\n${c.spec}`,
     { agentType: 'pr-opener', schema: PR_SCHEMA, label: `pr:${c.label}`, phase: 'Open PR' }
   )),
@@ -255,6 +289,7 @@ return config.map((c, i) => {
     prUrl: r.prUrl || '',
     status: r.status || 'failed',
     stoppedAt: r.stoppedAt || null,
+    iterations: r.steps?.implement?.iterationCount || 0,
     verdict: r.review?.verdict || 'skipped',
     steps: r.steps || {},
     review: r.review || null,

@@ -15,8 +15,11 @@ You are given: the issue number, title, body (acceptance criteria), a target
 branch name, and a target worktree path (relative to the repo root).
 
 Do, in order:
-1. From the repo root, create a PERSISTENT worktree + branch:
-     git worktree add -b <branch> <absolute-worktree-path>
+1. From the repo root, create a PERSISTENT worktree + branch BASED ON the latest
+   `origin/main` (never off the current HEAD — this session may sit on a feature
+   branch, which would pollute the PR diff):
+     git fetch origin main
+     git worktree add -b <branch> <absolute-worktree-path> origin/main
    Convert the relative target path to absolute first (prefix with
    `git rev-parse --show-toplevel`). If the command fails due to a git lock,
    retry up to 3 times. If the branch already exists, reuse it
