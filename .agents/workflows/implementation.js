@@ -31,11 +31,12 @@ const STATUS = { type: 'string', enum: ['ok', 'failed'] }
 
 const CONFIG_ITEM_SCHEMA = {
   type: 'object', additionalProperties: false,
-  required: ['issue', 'title', 'spec', 'branch', 'label'],
+  required: ['issue', 'title', 'spec', 'acceptanceCriteria', 'branch', 'label'],
   properties: {
     issue: { type: 'number' },
     title: { type: 'string' },
-    spec: { type: 'string', description: 'Full issue body verbatim (What to build + Acceptance criteria)' },
+    spec: { type: 'string', description: 'Full issue body verbatim (What to build + Acceptance criteria + Out of scope)' },
+    acceptanceCriteria: { type: 'string', description: 'ONLY the acceptance-criteria checklist, verbatim — the slice the verify/PR/review steps need' },
     branch: { type: 'string', description: 'claude/issue-<n>-<kebab-slug>' },
     label: { type: 'string', description: 'issue-<n>-<kebab-slug>' },
   },
@@ -170,6 +171,7 @@ const config = (await parallel(issues.map((n) => () =>
     `Fetch GitHub issue #${n} from ${REPO}.\n` +
     `Run: gh issue view ${n} --repo ${REPO} --json title,body\n` +
     `Return: issue=${n}; title=<the title>; spec=<the body VERBATIM>; ` +
+    `acceptanceCriteria=<ONLY the acceptance-criteria checklist from the body, verbatim>; ` +
     `branch="claude/issue-${n}-<slug>"; label="issue-${n}-<slug>" — <slug> is a 3-5 word ` +
     `kebab-case summary of the title (lowercase, hyphens, no punctuation).`,
     { label: `fetch:#${n}`, phase: 'Fetch', schema: CONFIG_ITEM_SCHEMA }
@@ -182,14 +184,11 @@ if (config.length === 0) throw new Error('implementation: no issues could be fet
 const results = await pipeline(
   config,
 
-  // 1. PLAN — also creates the persistent worktree/branch
+  // 1. PLAN — also creates the persistent worktree/branch (procedure lives in task-planner.md)
   (c) => step(null, c, 'plan', () => agent(
-    `Plan issue #${c.issue} ("${c.title}") in ${REPO} and set up its worktree.\n` +
-    `Target branch: ${c.branch}\nTarget worktree (relative to repo root): ${WT(c)} — make it absolute.\n\n` +
-    `Base the worktree+branch on the latest origin/main, NOT the current HEAD ` +
-    `(this session may be on a feature branch):\n` +
-    `  git fetch origin main && git worktree add -b ${c.branch} <abs-path> origin/main\n\n` +
-    `=== ISSUE ===\n${c.spec}\n\nCreate the worktree+branch, orient, return the plan + absolute worktreePath.`,
+    `Repo: ${REPO}\nIssue #${c.issue}: ${c.title}\n` +
+    `Target branch: ${c.branch}\nTarget worktree (relative to repo root): ${WT(c)}\n\n` +
+    `=== ISSUE ===\n${c.spec}`,
     { agentType: 'task-planner', schema: PLAN_SCHEMA, label: `plan:${c.label}`, phase: 'Plan' }
   )),
 
@@ -202,19 +201,15 @@ const results = await pipeline(
       n++
       const first = n === 1
       const tddPrompt = first
-        ? `Implement issue #${c.issue} ("${c.title}") per the plan, inside the worktree.\n` +
-          `Worktree (cd here for EVERY command): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
-          `=== PLAN ===\n${p.steps.plan?.plan || '(plan unavailable — work from the issue)'}\n\n` +
-          `=== ISSUE / acceptance criteria ===\n${c.spec}\n\n` +
-          `Implement to satisfy every criterion. Do NOT commit/push/PR.`
-        : `Your previous implementation for issue #${c.issue} ("${c.title}") FAILED verification ` +
-          `(iteration ${n - 1}). Fix it inside the worktree.\n` +
-          `Worktree (cd here for EVERY command): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
+        ? `Issue #${c.issue}: ${c.title}\n` +
+          `Worktree (cd here): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
+          `=== PLAN ===\n${p.steps.plan?.plan || '(none — work from the issue)'}\n\n` +
+          `=== ISSUE ===\n${c.spec}`
+        : `Issue #${c.issue}: ${c.title} — REMEDIATION (your iteration ${n - 1} failed verification).\n` +
+          `Worktree (cd here): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
           `=== Failing checks ===\n${JSON.stringify((v?.checks || []).filter((x) => !x.passed))}\n\n` +
-          `=== Unmet acceptance criteria ===\n${JSON.stringify((v?.criteria || []).filter((x) => !x.met).map((x) => x.criterion))}\n\n` +
-          `=== Verifier notes ===\n${v?.notes || ''}\n\n` +
-          `=== Acceptance criteria (full) ===\n${c.spec}\n\n` +
-          `Address ONLY these failures, stay in scope, do NOT commit/push/PR.`
+          `=== Unmet criteria ===\n${JSON.stringify((v?.criteria || []).filter((x) => !x.met).map((x) => x.criterion))}\n\n` +
+          `=== Verifier notes ===\n${v?.notes || ''}`
 
       const tdd = await agent(tddPrompt, {
         agentType: 'tdd-implementer', schema: TDD_SCHEMA,
@@ -222,10 +217,8 @@ const results = await pipeline(
       })
 
       v = await agent(
-        `Verify the change for issue #${c.issue} ("${c.title}") inside the worktree.\n` +
-        `Worktree (cd here first): ${p.worktreePath}\n\n` +
-        `=== Acceptance criteria (from the issue) ===\n${c.spec}\n\n` +
-        `Run typecheck/build/lint, judge each criterion, set status=failed if anything fails.`,
+        `Issue #${c.issue}: ${c.title}\nWorktree (cd here): ${p.worktreePath}\n\n` +
+        `=== Acceptance criteria ===\n${c.acceptanceCriteria}`,
         { agentType: 'change-verifier', schema: VERIFY_SCHEMA, label: first ? `verify:${c.label}` : `verify${n}:${c.label}`, phase: 'Implement' }
       )
 
@@ -241,26 +234,22 @@ const results = await pipeline(
 
   // 4. COMMIT
   (p, c) => step(p, c, 'commit', () => agent(
-    `Commit the verified change for issue #${c.issue} inside the worktree.\n` +
-    `Worktree (cd here first): ${p.worktreePath}\nBranch: ${p.branch}\n` +
-    `Use a "[Claude] " + Conventional Commits subject summarizing: ${c.title}`,
+    `Issue #${c.issue}: ${c.title}\nWorktree (cd here): ${p.worktreePath}\nBranch: ${p.branch}`,
     { agentType: 'committer', schema: COMMIT_SCHEMA, label: `commit:${c.label}`, phase: 'Commit' }
   )),
 
   // 5. PUSH
   (p, c) => step(p, c, 'push', () => agent(
-    `Push the committed branch for issue #${c.issue}.\n` +
-    `Worktree (cd here first): ${p.worktreePath}\nBranch: ${p.branch}`,
+    `Issue #${c.issue}\nWorktree (cd here): ${p.worktreePath}\nBranch: ${p.branch}`,
     { agentType: 'pusher', schema: PUSH_SCHEMA, label: `push:${c.label}`, phase: 'Push' }
   )),
 
   // 6. OPEN PR
   (p, c) => step(p, c, 'pr', () => agent(
-    `Open the PR for issue #${c.issue} ("${c.title}").\n` +
-    `Worktree (cd here first): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
-    `Body MUST include "Closes #${c.issue}" and a per-criterion checklist with how each was verified.\n` +
-    `Verify output to cite:\n${JSON.stringify(p.steps.implement?.checks || [])}\n\n` +
-    `=== Acceptance criteria ===\n${c.spec}`,
+    `Issue #${c.issue}: ${c.title} (${REPO})\nWorktree (cd here): ${p.worktreePath}\nBranch: ${p.branch}\n\n` +
+    `Body MUST include "Closes #${c.issue}".\n` +
+    `=== Acceptance criteria (one checklist line each, with how verified) ===\n${c.acceptanceCriteria}\n\n` +
+    `=== Verify results to cite ===\n${JSON.stringify(p.steps.implement?.checks || [])}`,
     { agentType: 'pr-opener', schema: PR_SCHEMA, label: `pr:${c.label}`, phase: 'Open PR' }
   )),
 
@@ -270,9 +259,8 @@ const results = await pipeline(
       return { ...(p || baseCtx(c)), review: { issue: c.issue, prUrl: p?.prUrl || '', verdict: 'skipped', criteria: [], concerns: 'No PR / earlier step failed at: ' + (p?.stoppedAt || 'unknown') } }
     }
     return agent(
-      `Verify the PR for issue #${c.issue} ("${c.title}") in ${REPO}.\nPR: ${p.prUrl}\n\n` +
-      `Acceptance criteria are in the issue body:\n${c.spec}\n\n` +
-      `Read the actual diff (gh pr diff ${p.prUrl}) and judge each criterion from the DIFF.`,
+      `Issue #${c.issue}: ${c.title} (${REPO})\nPR: ${p.prUrl}\n\n` +
+      `=== Acceptance criteria ===\n${c.acceptanceCriteria}`,
       { agentType: 'pr-reviewer', schema: REVIEW_SCHEMA, label: `review:${c.label}`, phase: 'Review' }
     ).then((review) => ({ ...p, review }))
   }

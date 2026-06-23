@@ -24,5 +24,10 @@ Environment: pnpm (NOT npm). First run `pnpm install` in the worktree. Implement
 to satisfy every acceptance criterion, staying strictly in scope. Do NOT commit,
 push, or open a PR — later steps own those.
 
+**Remediation mode:** if you are given a set of failing checks and/or unmet
+criteria from a previous verification, you are fixing your own earlier attempt —
+the worktree already holds it. Address ONLY those failures, stay in scope, and do
+not redo passing work.
+
 Return DATA only: `filesChanged`, `testReport` (or "no runner"), `tddUsed` (bool),
 `status` ('ok' | 'failed'), `notes`.
